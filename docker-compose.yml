@@ -1,0 +1,106 @@
+name: elk-log-management
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms${ES_HEAP} -Xmx${ES_HEAP}
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+    ports:
+      - "${ES_PORT}:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [elk]
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${STACK_VERSION}
+    container_name: logstash
+    environment:
+      - LS_JAVA_OPTS=-Xms${LS_HEAP} -Xmx${LS_HEAP}
+    ports:
+      - "${LOGSTASH_BEATS_PORT}:5044"
+    volumes:
+      - ./logstash/pipeline/:/usr/share/logstash/pipeline/:ro
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9600 | grep -q '\"status\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [elk]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${KIBANA_ENCRYPTION_KEY}
+      - XPACK_REPORTING_ENCRYPTIONKEY=${KIBANA_ENCRYPTION_KEY}
+      - XPACK_SECURITY_ENCRYPTIONKEY=${KIBANA_ENCRYPTION_KEY}
+    ports:
+      - "${KIBANA_PORT}:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:5601/api/status | grep -q '\"level\":\"available\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+    networks: [elk]
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${STACK_VERSION}
+    container_name: filebeat
+    user: root
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    volumes:
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./logs:/logs:ro
+      - filebeatdata:/usr/share/filebeat/data
+    depends_on:
+      logstash:
+        condition: service_healthy
+    networks: [elk]
+
+  sample-app:
+    build: ./sample-app
+    container_name: sample-app
+    environment:
+      - LOG_DIR=/logs
+    volumes:
+      - ./logs:/logs
+    networks: [elk]
+
+  # One-shot job: creates Kibana data views + alert rules, then exits.
+  kibana-setup:
+    image: curlimages/curl:8.7.1
+    container_name: kibana-setup
+    entrypoint: ["/bin/sh", "/setup.sh"]
+    volumes:
+      - ./kibana/setup.sh:/setup.sh:ro
+    depends_on:
+      kibana:
+        condition: service_healthy
+    restart: "no"
+    networks: [elk]
+
+volumes:
+  esdata:
+  filebeatdata:
+
+networks:
+  elk:
+    driver: bridge
