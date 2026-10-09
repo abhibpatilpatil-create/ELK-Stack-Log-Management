@@ -1,0 +1,29 @@
+# Filebeat: tails 3 log sources (nginx, application, system) and ships to Logstash.
+filebeat.inputs:
+  # ---- Source 1: Nginx ----
+  - type: filestream
+    id: nginx-access
+    paths: [/logs/nginx/access.log]
+    fields: { log_source: nginx_access }
+
+  - type: filestream
+    id: nginx-error
+    paths: [/logs/nginx/error.log]
+    fields: { log_source: nginx_error }
+
+  # ---- Source 2: Application (JSON lines) ----
+  - type: filestream
+    id: application
+    paths: [/logs/application/app.log]
+    fields: { log_source: application }
+
+  # ---- Source 3: System (syslog format) ----
+  - type: filestream
+    id: system
+    paths: [/logs/system/system.log]
+    fields: { log_source: system }
+
+output.logstash:
+  hosts: ["logstash:5044"]
+
+logging.level: info
