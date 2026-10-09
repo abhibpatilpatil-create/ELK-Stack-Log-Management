@@ -1,0 +1,2 @@
+Oct  9 10:00:01 web01 sshd[1201]: Accepted publickey for deploy from 10.0.0.5 port 52144 ssh2
+Oct  9 10:00:05 web01 sshd[1210]: Failed password for invalid user admin from 203.0.113.9 port 40022 ssh2

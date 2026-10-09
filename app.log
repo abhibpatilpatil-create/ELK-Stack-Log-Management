@@ -1,0 +1,2 @@
+{"timestamp":"2026-10-09T10:00:01.000Z","level":"INFO","service":"order-service","msg":"Order created","user":"alice","duration_ms":120,"status":201}
+{"timestamp":"2026-10-09T10:00:02.000Z","level":"ERROR","service":"payment-service","msg":"Payment gateway timeout","user":"bob","duration_ms":5000,"status":504}
